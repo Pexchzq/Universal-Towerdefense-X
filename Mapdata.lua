@@ -1,7 +1,6 @@
 local MapData = {
     StartCodes = {
-        Story = {0x2C, 0x00},
-        Infinite = {0xXX, 0xXX} 
+        Story = {0x2C, 0x00}
     },
     
     FinalValley = {
