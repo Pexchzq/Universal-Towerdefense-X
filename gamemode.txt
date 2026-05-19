@@ -1,0 +1,222 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = ReplicatedStorage.Packages._Index["sleitnick_knit@1.7.0"].knit
+local KnitTower = Knit.Services.TowerService
+local WaveService = Knit.Services.WaveService
+local UnitsFolder = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Units")
+
+if not UnitsFolder then warn("❌ หาโฟลเดอร์แมพไม่เจอ!") return end
+
+local CurrentPlaceId = game.PlaceId
+print("===================================")
+print("🌍 [System]: ตรวจพบด่านปัจจุบัน (PlaceId): " .. CurrentPlaceId)
+print("🤖 [System]: เปิดระบบ AFK ฟาร์ม 24 ชม. (โหมด Perfect Workspace Sensor)")
+print("===================================")
+
+-- ==========================================
+-- 🗺️ CONFIG: ตั้งค่าพิกัดแยกตามด่าน
+-- ==========================================
+local MapConfigs = {
+    [106402284955512] = {  
+        ["Sp_1"]  = CFrame.new(-457.009003, 429.530914, 346.25235, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Donut_1"] = CFrame.new(-448.539551, 432.305847, 342.972137, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Donut_2"] = CFrame.new(-448.539551, 432.305847, 342.972137, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Donut_3"] = CFrame.new(-448.539551, 432.305847, 342.972137, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Ak_1"] = CFrame.new(-469.156158, 429.530914, 330.250061, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Ak_2"] = CFrame.new(-461.361023, 429.530914, 349.613403, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Ak_3"] = CFrame.new(-436.896729, 429.530914, 349.763611, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Su_1"] = CFrame.new(5370.0, 2.75, -3035.0, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Su_2"] = CFrame.new(5375.0, 2.75, -3035.0, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Go_1"] = CFrame.new(5375.0, 2.75, -3035.0, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Go_2"] = CFrame.new(5375.0, 2.75, -3035.0, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+    },
+    ["Default"] = {
+        ["Sp_1"]  = CFrame.new(-457.009003, 429.530914, 346.25235, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Donut_1"] = CFrame.new(-448.539551, 432.305847, 342.972137, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Donut_2"] = CFrame.new(-448.539551, 432.305847, 342.972137, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Donut_3"] = CFrame.new(-448.539551, 432.305847, 342.972137, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Ak_1"] = CFrame.new(-469.156158, 429.530914, 330.250061, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Ak_2"] = CFrame.new(-461.361023, 429.530914, 349.613403, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Ak_3"] = CFrame.new(-436.896729, 429.530914, 349.763611, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        ["Su_1"] = CFrame.new(-461.361023, 429.530914, 349.613403, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+    }
+}
+local CurrentCoords = MapConfigs[CurrentPlaceId] or MapConfigs["Default"]
+
+-- ==========================================
+-- ⚙️ ระบบหลังบ้าน (คลังสมอง GUID)
+-- ==========================================
+local PlacedGUIDs = {}
+local ExpectedID = nil
+
+UnitsFolder.ChildAdded:Connect(function(newUnit)
+    local guid = newUnit.Name
+    if string.len(guid) > 20 and string.match(guid, "%-") then
+        if ExpectedID then
+            PlacedGUIDs[ExpectedID] = guid
+            ExpectedID = nil
+        end
+    end
+end)
+
+-- ==========================================
+-- 🛠️ ฟังก์ชันคำสั่งหลัก (Place & Upgrade)
+-- ==========================================
+local function Place(idName, slot)
+    local cframePos = CurrentCoords[idName]
+    if not cframePos then warn("❌ ไม่พบพิกัดของ '" .. idName .. "'") return end
+
+    print(string.format("⏳ [รอวาง]: %s (สล็อต %d)...", idName, slot))
+    ExpectedID = idName
+    while ExpectedID ~= nil do
+        pcall(function() KnitTower.RF.PlaceUnit:InvokeServer(slot, cframePos) end)
+        task.wait(1)
+    end
+    print("✅ [วางสำเร็จ]: " .. idName)
+    task.wait(0.5)
+end
+
+local function Upgrade(idName)
+    local guid = PlacedGUIDs[idName]
+    if not guid then return end
+    print(string.format("⏳ [รออัปเกรด]: %s...", idName))
+    
+    local success = false
+    while not success do
+        local ok, result = pcall(function() return KnitTower.RF.UpgradeUnit:InvokeServer(guid) end)
+        if ok and result and result ~= false and result ~= "Not enough money" then
+            success = true
+        else
+            task.wait(1)
+        end
+    end
+    print("✨ [อัปเกรดสำเร็จ]: " .. idName)
+    task.wait(0.5)
+end
+
+-- ==========================================
+-- 🔄 ฟังก์ชันตรวจจับจบด่าน (Map Clear Sensor)
+-- ==========================================
+local function WaitForMatchEndAndRestart()
+    print("\n💤 [มาโครทำงานเสร็จสิ้น]: เข้าโหมดสแตนด์บาย รอแมพว่างเปล่า (ยูนิต = 0)...")
+    
+    local hasGameStarted = false
+    local isMatchEnded = false
+    
+    while not isMatchEnded do
+        task.wait(1) -- สแกนทุก 1 วินาที
+        
+        pcall(function()
+            local unitsFolder = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Units")
+            
+            -- ถ้าหาโฟลเดอร์ไม่เจอ (เกมอาจจะใช้วิธีลบทิ้งทั้งโฟลเดอร์ตอนจบด่าน)
+            if not unitsFolder then
+                if hasGameStarted then
+                    isMatchEnded = true
+                end
+                return
+            end
+            
+            -- นับยูนิต
+            local unitCount = #unitsFolder:GetChildren()
+            
+            -- ลอจิก 1: รอให้ด่านเริ่ม (มีการวางตัวละคร หรือมอนสเตอร์เกิด)
+            if unitCount > 0 and not hasGameStarted then
+                hasGameStarted = true
+                print("⚔️ [จุดชนวน]: ตรวจพบการเคลื่อนไหวในสนาม! เริ่มจับตาดูการล้างแมพ...")
+            end
+            
+            -- ลอจิก 2: พอเกมเริ่มไปแล้ว และจู่ๆ ยูนิตหายหมดเหลือ 0 แปลว่าจบด่านชัวร์!
+            if hasGameStarted and unitCount == 0 then
+                isMatchEnded = true
+                print("🎉 [เป้าหมายทำงาน!]: แมพถูกเคลียร์จนว่างเปล่าแล้ว (ยูนิต = 0) ยืนยันการจบเกม!")
+            end
+        end)
+    end
+    
+    print("🧹 [รีเซ็ตระบบ]: ล้างข้อมูล GUID เก่าเตรียมขึ้นรอบใหม่...")
+    PlacedGUIDs = {}
+    ExpectedID = nil
+    
+    -- หน่วงเวลา 3 วินาที ให้ชัวร์ว่าเซิร์ฟเวอร์ประมวลผลด่านเสร็จก่อนยิงรีเพลย์
+    print("⏳ รอให้เซิร์ฟเวอร์ประมวลผลของรางวัล 3 วินาที...")
+    task.wait(3)
+    
+    print("🔄 [ระบบรีเพลย์]: กำลังยิง Remote ย้ายด่าน (ไม่ใช้เมาส์คลิก)...")
+    
+    -- ยิง Remote เพียวๆ แบบที่คุณต้องการ
+    pcall(function() WaveService.RE.NextMap:FireServer() end)
+    task.wait(1) -- เว้นจังหวะนิดนึงกันเซิร์ฟเวอร์รวน
+    pcall(function() WaveService.RE.VoteReplay:FireServer() end)
+    
+    print("✅ สั่งการรีเพลย์สำเร็จ! รอเกมโหลดแมพใหม่ 15 วินาที ก่อนเริ่มรันมาโครคิวแรก...")
+    task.wait(15) 
+end
+
+-- ==========================================
+-- 🎮 ระบบวงจรฟาร์ม (ลูปอนันต์)
+-- ==========================================
+task.spawn(function()
+    -- รอโหลดด่านครั้งแรกสุดตอนรันสคริปต์
+    task.wait(5)
+    
+    while true do
+        print("\n🚀 --- เริ่มรันมาโคร (รอบใหม่) ---")
+        
+        -- 👇 ลำดับมาโครของลูกพี่ 👇
+        Place("Sp_1", 3)
+        Upgrade("Sp_1")
+        Upgrade("Sp_1")
+
+        Place("Donut_1", 1)
+        Place("Donut_2", 1)
+        Place("Donut_3", 1)
+
+        Upgrade("Donut_3") 
+        Upgrade("Donut_3")
+        Upgrade("Donut_3")
+        Upgrade("Donut_3")
+        Upgrade("Donut_3")
+        Upgrade("Donut_3")
+        Upgrade("Donut_3")
+        
+        Upgrade("Donut_2")
+        Upgrade("Donut_2")
+        Upgrade("Donut_2")
+        Upgrade("Donut_2")
+        Upgrade("Donut_2")
+        Upgrade("Donut_2")
+        Upgrade("Donut_2")
+        
+        Upgrade("Donut_1")
+        Upgrade("Donut_1")
+        Upgrade("Donut_1")
+        Upgrade("Donut_1")
+        Upgrade("Donut_1")
+        Upgrade("Donut_1")
+        Upgrade("Donut_1")
+        
+        Place("Ak_1", 2)
+        Place("Ak_2", 2)
+        Place("Ak_3", 2)
+        
+        Upgrade("Ak_1")
+        Upgrade("Ak_1")
+        Upgrade("Ak_1")
+        Upgrade("Ak_1")
+        
+        Upgrade("Ak_2")
+        Upgrade("Ak_2")
+        Upgrade("Ak_2")
+        Upgrade("Ak_2")
+        
+        Upgrade("Ak_3")
+        Upgrade("Ak_3")
+        Upgrade("Ak_3")
+        Upgrade("Ak_3")
+        -- 👆 จบลำดับมาโคร 👆
+        
+        -- รอเกมเคลียร์แมพและรันรอบใหม่
+        WaitForMatchEndAndRestart()
+    end
+end)

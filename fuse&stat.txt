@@ -1,0 +1,178 @@
+-- ==========================================
+-- ⚙️ CONFIG: ตั้งค่าการให้อาหาร (โหมด Blacklist)
+-- ==========================================
+local Config = {
+    MainUnit = "Spade:evolved", -- 🌟 ตัวที่จะเป็นคนกิน (เอาชื่อหลังบ้านมาใส่)
+    
+    KeepUnits = { -- 🛡️ รายชื่อตัวที่ "หวง/ห้ามย่อยเด็ดขาด" (ใส่ชื่อหลังบ้าน)
+        "Spade",
+		"Sinbad",
+        "FastCart",
+        "Bulma",
+		"Akainu:evolved",
+		"Sasuke:evolved",
+		"Nami"
+    },
+    
+    MaxFeed = 50 -- 🔢 จำนวนย่อยสูงสุดต่อครั้ง
+}
+
+print("===================================")
+print("🍖 [System]: เริ่มระบบให้อาหารยูนิต (โหมด Blacklist กวาดเรียบ!)...")
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local FuseRemote = ReplicatedStorage.Packages._Index["sleitnick_knit@1.7.0"].knit.Services.DataService.RE.FuseUnits
+
+local seenGUIDs = {}
+local mainGuid = nil
+local trashGuids = {}
+
+-- ฟังก์ชันเช็คว่าตัวนี้ "หวง" ไหม
+local function isKeptUnit(unitId)
+    for _, keepName in ipairs(Config.KeepUnits) do
+        if unitId == keepName then return true end
+    end
+    return false
+end
+
+print("🔍 กำลังสแกนกระเป๋า แยกตัวเทพกับตัวขยะ...")
+
+for _, obj in pairs(getgc(true)) do
+    if type(obj) == "table" then
+        pcall(function()
+            local unitId = rawget(obj, "UnitId")
+            local guid = rawget(obj, "GUID")
+            local isEquipped = rawget(obj, "Equipped")
+            local isLocked = rawget(obj, "Locked")
+
+            if type(unitId) == "string" and type(guid) == "string" and (guid:find("-") or guid:find("{")) then
+                
+                -- 🛑 กฎเหล็กความปลอดภัย: ข้ามตัวที่ใส่ในทีมและตัวที่ล็อคไว้
+                if isEquipped == 1 or isEquipped == true then return end
+                if isLocked == 1 or isLocked == true then return end
+
+                if not seenGUIDs[guid] then
+                    seenGUIDs[guid] = true
+                    
+                    -- แยกตัวหลักมารอเป็นคนกิน
+                    if unitId == Config.MainUnit and not mainGuid then
+                        mainGuid = guid
+                    else
+                        -- ถ้าไม่ใช่ตัวหลัก ให้เช็คว่าอยู่ในรายชื่อ "ห้ามย่อย" ไหม
+                        if not isKeptUnit(unitId) then
+                            -- ถ้าไม่อยู่ในรายชื่อหวง แปลว่าเป็นขยะ! โยนลงเตาเผา
+                            if #trashGuids < Config.MaxFeed then
+                                table.insert(trashGuids, guid)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end
+
+-- สรุปผลและส่งคำสั่งย่อย
+if not mainGuid then
+    warn("❌ ไม่พบตัวหลัก '" .. Config.MainUnit .. "' (อาจจะไม่มีในกระเป๋า, ใส่อยู่ในทีม หรือถูกล็อคไว้)")
+    return
+end
+
+if #trashGuids > 0 then
+    print("✅ พบตัวหลัก: " .. Config.MainUnit)
+    print("🍔 กำลังกวาดตัวที่ไม่ได้หวง จำนวน: " .. #trashGuids .. " ตัว ยัดเข้าปาก...")
+    
+    -- ยิง Remote
+    pcall(function()
+        FuseRemote:FireServer(mainGuid, trashGuids)
+    end)
+    
+    print("✨ ให้อาหารสำเร็จเรียบร้อย!")
+else
+    warn("⚠️ ไม่พบตัวขยะเลยครับ (ยูนิตในกระเป๋ามีแต่ตัวที่ตั้งห้ามย่อยไว้)")
+end
+print("===================================")
+
+-- ==========================================
+-- ⚙️ CONFIG: ตั้งค่าการอัปสเตตัส
+-- ==========================================
+local Config = {
+    MainUnit = "Spade:evolved", -- 🌟 เอาชื่อหลังบ้านมาใส่ (เช่น "goku_01")
+    
+    StatName = "Damage", -- 📊 ชื่อสเตตัสที่ต้องการอัพ (ส่วนใหญ่จะเป็น "Damage", "Range" หรือ "Cooldown")
+    PointsToUse = 1,     -- 🔢 จำนวนแต้มที่ต้องการกดอัพต่อ 1 ครั้ง
+    
+    AutoLoop = true,     -- 🔄 ให้มันวนลูปอัพรัวๆ จนกว่าแต้มจะหมดไหม? (true = อัพรัวๆ / false = อัพแค่ครั้งเดียว)
+    LoopDelay = 0.5      -- ⏳ ความไวในการกดอัพรัวๆ (หน่วยเป็นวินาที)
+}
+
+print("===================================")
+print("💪 [System]: เริ่มระบบอัปสเตตัสอัตโนมัติ...")
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UseStatPointsRF = ReplicatedStorage.Packages._Index["sleitnick_knit@1.7.0"].knit.Services.DataService.RF.UseStatPoints
+
+local mainGuid = nil
+
+-- 1. สแกนกระเป๋าหา GUID ของตัวหลัก
+print("🔍 กำลังค้นหาตัวหลัก: " .. Config.MainUnit)
+for _, obj in pairs(getgc(true)) do
+    if type(obj) == "table" then
+        pcall(function()
+            local unitId = rawget(obj, "UnitId")
+            local guid = rawget(obj, "GUID")
+
+            if type(unitId) == "string" and type(guid) == "string" and (guid:find("-") or guid:find("{")) then
+                if unitId == Config.MainUnit then
+                    mainGuid = guid
+                end
+            end
+        end)
+    end
+    if mainGuid then break end -- ถ้าเจอตัวแรกแล้วให้หยุดหาทันที
+end
+
+-- 2. ดำเนินการอัปสเตตัส
+if not mainGuid then
+    warn("❌ ไม่พบตัวหลัก '" .. Config.MainUnit .. "' ในกระเป๋าครับ ตรวจสอบชื่ออีกครั้ง")
+    return
+end
+
+print("✅ เจอตัวหลักแล้ว! (GUID: " .. mainGuid .. ")")
+
+if Config.AutoLoop then
+    print("🔄 โหมด AutoLoop: เปิด -> กำลังอัพสเตตัส " .. Config.StatName .. " รัวๆ จนกว่าแต้มจะหมด...")
+    
+    task.spawn(function()
+        local attempt = 1
+        while true do
+            local success, result = pcall(function()
+                -- ยิง RemoteFunction เพื่อขออัพสเตตัส
+                return UseStatPointsRF:InvokeServer(mainGuid, Config.StatName, Config.PointsToUse)
+            end)
+            
+            -- สมมติฐาน: ถ้ายิงไปแล้ว Error หรือเกมส่งค่า false กลับมา แปลว่าแต้มหมด หรืออัพตันแล้ว
+            if not success or result == false then
+                print("🛑 [ระบบ]: หยุดการอัพสเตตัส (แต้มน่าจะหมด หรือสเตตัสตันแล้ว)")
+                break
+            end
+            
+            print("✨ อัพ " .. Config.StatName .. " สำเร็จ! (ครั้งที่ " .. attempt .. ")")
+            attempt = attempt + 1
+            task.wait(Config.LoopDelay)
+        end
+    end)
+else
+    -- โหมดอัพครั้งเดียว (ไม่ลูป)
+    print("🚀 กำลังอัพสเตตัส " .. Config.StatName .. " จำนวน " .. Config.PointsToUse .. " แต้ม...")
+    local success, result = pcall(function()
+        return UseStatPointsRF:InvokeServer(mainGuid, Config.StatName, Config.PointsToUse)
+    end)
+    
+    if success and result ~= false then
+        print("✨ อัพสเตตัสสำเร็จเรียบร้อย!")
+    else
+        warn("⚠️ อัพสเตตัสไม่สำเร็จ (แต้มอาจจะไม่พอ)")
+    end
+end
+print("===================================")

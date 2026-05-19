@@ -1,0 +1,142 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = ReplicatedStorage.Packages._Index["sleitnick_knit@1.7.0"].knit
+local KnitTower = Knit.Services.TowerService
+local WaveService = Knit.Services.WaveService -- ประกาศเรียกใช้ WaveService
+local UnitsFolder = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Units")
+
+local currentPlaceId = game.PlaceId
+local tutorialPlaceId = 106402284955512 
+
+if currentPlaceId == tutorialPlaceId then
+    print("🎓 [Tutorial Mode]: ตรวจพบด่านสอนเล่น! สลับมาใช้สมองซีก Tutorial...")
+
+    -- ==========================================
+    -- 🛠️ ฟังก์ชันเฉพาะกิจสำหรับ Tutorial
+    -- ==========================================
+    
+    -- ฟังก์ชัน: สั่งวางยูนิต พร้อมดักจับ GUID ที่เด้งขึ้นมาในแมพทันที
+    local function PlaceAndGetGUID(slot, cframePos)
+        local placedGuid = nil
+        local connection
+        
+        connection = UnitsFolder.ChildAdded:Connect(function(newUnit)
+            if string.len(newUnit.Name) > 20 and string.match(newUnit.Name, "%-") then
+                placedGuid = newUnit.Name
+            end
+        end)
+        
+        print("⏳ [Tutorial]: กำลังวางสล็อต " .. slot .. "...")
+        local success = false
+        while not success do
+            local ok = pcall(function()
+                KnitTower.RF.PlaceUnit:InvokeServer(slot, cframePos)
+            end)
+            
+            if ok and placedGuid then
+                success = true
+            else
+                task.wait(1)
+            end
+        end
+        
+        connection:Disconnect()
+        print("✅ [Tutorial]: วางสำเร็จ! ได้รับ GUID -> " .. tostring(placedGuid))
+        return placedGuid
+    end
+
+    -- ฟังก์ชัน: อัปเกรด
+    local function UpgradeTutorialUnit(guid)
+        print("⏳ [Tutorial]: กำลังสั่งอัปเกรด...")
+        local success = false
+        while not success do
+            local ok, result = pcall(function()
+                return KnitTower.RF.UpgradeUnit:InvokeServer(guid)
+            end)
+            if ok and result ~= false and result ~= "Not enough money" then
+                success = true
+            else
+                task.wait(1)
+            end
+        end
+        print("✨ [Tutorial]: อัปเกรดสำเร็จ!")
+    end
+
+    -- ฟังก์ชัน: กดสกิล
+    local function UseAbility(guid, skillIndex)
+        print("🔥 [Tutorial]: กำลังกดใช้สกิลที่ " .. skillIndex .. "...")
+        pcall(function()
+            KnitTower.RE.UseAbility:FireServer(guid, skillIndex)
+        end)
+        print("✅ [Tutorial]: ส่งคำสั่งใช้สกิลสำเร็จ!")
+    end
+
+    -- ==========================================
+    -- 🎬 เริ่มรันบทละคร Tutorial
+    -- ==========================================
+    task.spawn(function()
+        task.wait(5) -- รอเกมโหลดฉาก Tutorial ให้เสร็จ
+        
+        -- พิกัดเดียว ใช้ทั้งนารูโตะและซาสึเกะ
+        local spawnPos = CFrame.new(5422.51416, 2.75, -3043.2356, 1, 0, 0, 0, 1, 0, 0, 0, 1)
+
+        -- 🦊 บทที่ 1: วางนารูโตะ (สล็อต 1)
+        print("--- 🦊 สเต็ป 1: ภารกิจนารูโตะ ---")
+        local narutoGuid = PlaceAndGetGUID(1, spawnPos)
+        
+        task.wait(3) 
+        
+        -- 🦊 บทที่ 2: อัปเกรดนารูโตะ
+        UpgradeTutorialUnit(narutoGuid)
+        
+        -- 💨 บทที่ 3: รอจนกว่าเกมนารูโตะจะโดนเกมลบทิ้ง
+        print("⏳ [Tutorial]: รอเกมนับฉาก... รอนารูโตะหายตัวไป...")
+        while UnitsFolder:FindFirstChild(narutoGuid) do
+            task.wait(1)
+        end
+        print("💨 [Tutorial]: นารูโตะหายไปแล้ว! รอซาสึเกะเข้ามือ...")
+        
+        task.wait(4)
+        
+        -- ⚡ บทที่ 4: วางซาสึเกะ (สล็อต 1)
+        print("--- ⚡ สเต็ป 2: ภารกิจซาสึเกะ ---")
+        local sasukeGuid = PlaceAndGetGUID(1, spawnPos)
+        
+        task.wait(3) 
+        
+        -- ⚡ บทที่ 5: กดใช้สกิลซาสึเกะ
+        UseAbility(sasukeGuid, 1)
+        
+        print("🏁 [Tutorial]: ทำภารกิจตามที่สอนครบแล้ว! เข้าสู่โหมดรอแมพว่าง...")
+        
+        -- 🔍 บทที่ 6: เซนเซอร์รอจบด่าน (ดักจับยูนิตเหลือ 0)
+        local isTutorialEnded = false
+        while not isTutorialEnded do
+            task.wait(1)
+            
+            pcall(function()
+                local currentUnitsFolder = workspace:FindFirstChild("Ignore") and workspace.Ignore:FindFirstChild("Units")
+                
+                if not currentUnitsFolder or #currentUnitsFolder:GetChildren() == 0 then
+                    isTutorialEnded = true
+                end
+            end)
+        end
+        
+        print("🎉 [Tutorial]: ทุกอย่างในแมพหายไปแล้ว (แมพเคลียร์)! ยืนยันการจบด่าน!")
+        
+        task.wait(3)
+        
+        print("🚀 [Tutorial]: กำลังยิง Remote เพื่อกลับ Lobby...")
+        
+        -- 🏠 บทที่ 7: ยิง Remote กลับ Lobby ด้วย ToLobby จากภาพที่เจาะมา!
+        pcall(function()
+            WaveService.RE.ToLobby:FireServer() 
+        end)
+        
+        print("✅ [Tutorial]: สั่งการกลับ Lobby สำเร็จ! ยินดีต้อนรับสู่โลกกว้าง!")
+    end)
+else
+    -- 🔴 [โหมด Auto Farm ปกติ] 🔴
+    print("⚔️ [System]: ไม่ใช่ด่าน Tutorial... กำลังรันระบบ Auto Farm ปกติ!")
+    -- โค้ดระบบฟาร์มของด่านทั่วไปใส่ต่อตรงนี้ได้เลย
+end

@@ -1,0 +1,108 @@
+-- ==========================================
+-- ⚙️ CONFIG: ตั้งค่าทีม (Slot 1-6) ปล่อยว่าง "" ถ้าไม่ใส่
+-- 💡 ทริค: ใส่แค่ชื่อหน้า (เช่น "Sasuke") ระบบจะดึงตัวที่ "ดาวเยอะสุด/คิลเยอะสุด/อีโวแล้ว" มาใส่ให้เอง!
+-- ==========================================
+local Config = {
+    "FastCart",         -- Slot 1
+    "Gohan",          -- Slot 2
+    "Sasuke",               -- Slot 3
+    "",               -- Slot 4
+    "",               -- Slot 5
+    ""                -- Slot 6
+}
+
+print("===================================")
+print("⚔️ [System]: เริ่มระบบจัดทีมอัตโนมัติ (V.4 - Ultimate Smart Equip)")
+print("===================================")
+
+local KnitData = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.DataService
+
+-- 1. สั่งถอดยูนิตทั้งหมด
+print("🧹 ถอดยูนิตทั้งหมด (Unequip All)...")
+KnitData.RE.UnequipAll:FireServer()
+task.wait(1)
+
+-- 2. สแกน Memory ดึงข้อมูลยูนิตมาเก็บในคลังพร้อม 'สเตตัสเชิงลึก'
+print("🔍 สแกนกระเป๋าหายูนิตทั้งหมด...")
+local InventoryList = {} 
+local Seen = {}
+
+for _, obj in pairs(getgc(true)) do
+    if type(obj) == "table" then
+        pcall(function()
+            local id, guid = rawget(obj, "UnitId"), rawget(obj, "GUID")
+            if type(id) == "string" and type(guid) == "string" and (guid:find("-") or guid:find("{")) then
+                if not Seen[guid] then
+                    Seen[guid] = true
+                    
+                    -- 🌟 ดึงข้อมูลความเก่งมาเก็บไว้เหมือนระบบอัปดาว
+                    table.insert(InventoryList, {
+                        id = id, 
+                        guid = guid,
+                        etherealLevel = rawget(obj, "EtherealLevel") or 0,
+                        takedowns = rawget(obj, "TotalTakedowns") or rawget(obj, "Takedowns") or 0,
+                        exp = rawget(obj, "Experience") or 0
+                    })
+                end
+            end
+        end)
+    end
+end
+
+-- ฟังก์ชัน AI คัดเลือกยูนิตที่ "เก่งที่สุด" จากชื่อเป้าหมาย
+local function getBestUnitMatch(targetName)
+    local candidates = {}
+    
+    for _, unit in ipairs(InventoryList) do
+        -- เช็คว่า: 1. ชื่อตรงเป๊ะ หรือ 2. มีชื่อหน้าตรงกันแล้วตามด้วย ":"
+        if unit.id == targetName or string.sub(unit.id, 1, #targetName + 1) == targetName .. ":" then
+            table.insert(candidates, unit)
+        end
+    end
+
+    -- 🧠 กฎเหล็กการจัดอันดับ (AI Sorting)
+    if #candidates > 0 then
+        table.sort(candidates, function(a, b)
+            if a.etherealLevel ~= b.etherealLevel then return a.etherealLevel > b.etherealLevel end -- 1. ดาว
+            if a.takedowns ~= b.takedowns then return a.takedowns > b.takedowns end             -- 2. คิล
+            if a.exp ~= b.exp then return a.exp > b.exp end                                     -- 3. EXP
+            return string.len(a.id) > string.len(b.id)                                          -- 4. ร่างอีโว
+        end)
+        
+        local bestMatch = candidates[1]
+        
+        -- พอดึงตัวท็อปมาแล้ว ต้องลบมันออกจาก InventoryList จะได้ไม่หยิบซ้ำไปใส่ Slot ถัดไป
+        for idx, invUnit in ipairs(InventoryList) do
+            if invUnit.guid == bestMatch.guid then
+                table.remove(InventoryList, idx)
+                break
+            end
+        end
+        
+        return bestMatch
+    end
+    
+    return nil
+end
+
+-- 3. สวมใส่ยูนิตเข้าทีม
+print("🎯 กำลังสวมใส่ยูนิตเข้าทีมตามความโหด...")
+for slot, targetName in ipairs(Config) do
+    if targetName ~= "" then
+        -- โยนชื่อไปให้ฟังก์ชันหาตัวที่เก่งสุดมา
+        local bestUnit = getBestUnitMatch(targetName)
+        
+        if bestUnit then
+            print(string.format("   -> [Slot %d] หา: %s | 🌟 ใส่: %s (ดาว:%d, คิล:%d, EXP:%d)", 
+                slot, targetName, bestUnit.id, bestUnit.etherealLevel, bestUnit.takedowns, bestUnit.exp))
+            
+            KnitData.RF.ToggleEquip:InvokeServer(bestUnit.guid)
+            task.wait(0.3) -- กันโดนเตะ (Spam Kick)
+        else
+            warn(("❌ [Slot %d] ข้าม: ไม่พบยูนิตตระกูล '%s' ในกระเป๋า"):format(slot, targetName))
+        end
+    end
+end
+
+print("✅ จัดทีมสุดโหดเสร็จสมบูรณ์ พร้อมลุยด่าน!")
+print("===================================")

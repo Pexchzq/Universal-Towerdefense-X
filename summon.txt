@@ -1,0 +1,98 @@
+
+-- ==========================================
+-- ⚙️ CONFIG: ตั้งค่าเป้าหมายในการสุ่ม (Auto Summon)
+-- ==========================================
+local TargetUnits = {
+    -- ["ชื่อยูนิตที่จะหา"] = จำนวนชิ้นที่ต้องการให้มีในกระเป๋า
+    ["FastCart"] = 2,	-- อยากได้ซาสึเกะ (ร่างไหนก็ได้) รวมกัน 2 ตัว
+	["Bulma"] = 1,
+    
+}
+
+local BannerAmount = "TenSummon" -- รูปแบบการสุ่ม: "TenSummon" (สุ่ม10) หรือ "OneSummon" (สุ่ม1)
+local BannerType = "Special"     -- ตู้ที่จะสุ่ม: "Special" (ตู้พิเศษ) หรือ "Standard" (ตู้ปกติ)
+
+-- ระยะเวลาหน่วงหลังกดสุ่ม (กันเซิร์ฟเวอร์เตะ และรออนิเมชั่นเกม)
+local WaitTimeAfterSummon = 3.5  
+
+-- ==========================================
+print("🎰 [System]: เริ่มระบบ Auto Summon พลังเกลือ...")
+
+local KnitBanner = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.BannerService
+
+-- ฟังก์ชันสำหรับเช็คของในกระเป๋าว่ามีตามเป้าหมายกี่ตัวแล้ว
+local function getCurrentProgress()
+    local counts = {}
+    -- ตั้งค่าเริ่มต้นให้ทุกตัวใน Config เป็น 0
+    for name, _ in pairs(TargetUnits) do 
+        counts[name] = 0 
+    end
+
+    local Seen = {}
+    -- กวาด Memory หาข้อมูลกระเป๋า
+    for _, obj in pairs(getgc(true)) do
+        if type(obj) == "table" then
+            pcall(function()
+                local id, guid = rawget(obj, "UnitId"), rawget(obj, "GUID")
+                if type(id) == "string" and type(guid) == "string" and (guid:find("-") or guid:find("{")) then
+                    if not Seen[guid] then
+                        Seen[guid] = true
+                        
+                        -- เช็คว่ายูนิตตัวนี้ ตรงกับที่เราหาใน Config ไหม (รองรับชื่อร่างอัปเกรดด้วย)
+                        for targetName, _ in pairs(TargetUnits) do
+                            if id == targetName or string.sub(id, 1, #targetName + 1) == targetName .. ":" then
+                                counts[targetName] = counts[targetName] + 1
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+    return counts
+end
+
+-- ลูปการทำงานหลัก (ทำงานจนกว่าจะหาของครบ)
+task.spawn(function()
+    while true do
+        local currentCounts = getCurrentProgress()
+        local isAllGoalsMet = true
+        local statusText = ""
+
+        -- ตรวจสอบว่าได้ครบตามเป้าหรือยัง
+        for targetName, requiredAmount in pairs(TargetUnits) do
+            local currentAmount = currentCounts[targetName]
+            statusText = statusText .. string.format("[%s: %d/%d] ", targetName, currentAmount, requiredAmount)
+            
+            if currentAmount < requiredAmount then
+                isAllGoalsMet = false -- ถ้ามีตัวไหนยังไม่ครบ ให้สุ่มต่อ
+            end
+        end
+
+        print("📊 อัปเดตกระเป๋า: " .. statusText)
+
+        -- ถ้าครบหมดแล้วให้หยุดการทำงานทันที
+        if isAllGoalsMet then
+            print("🎉 แจ็คพอต!! สุ่มได้ยูนิตครบตามเป้าหมายทั้งหมดแล้ว! ปิดระบบสุ่ม")
+            break
+        end
+
+        -- ถ้ายังไม่ครบ ยิง Remote สุ่มกาชาต่อ
+        print(("🔮 ยังไม่ครบ! กำลังยิง Remote สุ่มตู้ [%s] แบบ [%s]..."):format(BannerType, BannerAmount))
+        
+        -- ใช้ pcall เผื่อยิง Remote แล้วเกิด Error (เช่น เพชรหมด) สคริปต์จะได้ไม่พัง
+        local success, response = pcall(function()
+            return KnitBanner.RF.BuyBanner:InvokeServer(BannerAmount, BannerType)
+        end)
+
+        if success then
+            -- ปริ้นท์ค่าที่เซิร์ฟเวอร์ตอบกลับมา เผื่อเอาไว้เช็คว่าเพชรหมดหรือสุ่มสำเร็จ
+            print("✅ เซิร์ฟเวอร์ตอบกลับ: ", response)
+        else
+            warn("❌ เกิดข้อผิดพลาดในการส่งคำสั่งสุ่ม (เพชรอาจจะหมด หรือเซิร์ฟหน่วง):", response)
+        end
+
+        print("⏳ รอระบบอัปเดตของเข้ากระเป๋า " .. WaitTimeAfterSummon .. " วินาที...")
+        task.wait(WaitTimeAfterSummon)
+    end
+end)

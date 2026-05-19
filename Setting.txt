@@ -1,0 +1,29 @@
+-- ==========================================
+-- ⚙️ CONFIGURATION (ตั้งค่า)
+-- ใส่ true เพื่อเปิดการทำงาน / ใส่ false เพื่อปิดการทำงาน
+-- ==========================================
+local Config = {
+    DisableObtainmentMessages = true,
+    AutoSkipSummon            = true,
+    UpdateLogOncePerUpdate    = true,
+    BuyMaxBanner              = true,
+    AutoSkip                  = true,
+    AutoAbilities             = true,
+    AutoSkipCutscenes         = true,
+    AutoStart                 = true,
+    Performance               = true,
+	SellRare                  = true,
+	SellTraitRare             = true
+}
+
+-- ==========================================
+-- 🚀 SCRIPT (ระบบจัดการตัวเลือก)
+-- ==========================================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SetSetting = ReplicatedStorage:WaitForChild("Packages")._Index["sleitnick_knit@1.7.0"].knit.Services.DataService.RE.SetSetting
+
+-- วนลูปส่งค่า Setting ทั้งหมดไปยัง Server
+for settingName, isEnabled in pairs(Config) do
+    SetSetting:FireServer(settingName, isEnabled)
+end
+

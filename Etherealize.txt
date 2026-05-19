@@ -1,0 +1,98 @@
+
+-- ==========================================
+-- ⚙️ CONFIG: ตั้งค่าชื่อยูนิตที่จะอัพดาว
+-- ==========================================
+local TargetUnitName = "Sasuke" -- ใส่แค่ชื่อหน้าได้เลย ระบบจะกวาดหาทั้งตระกูล
+
+print("===================================")
+print("🌟 [System]: เริ่มระบบอัปดาวอัตโนมัติ (Auto Bulk Etherealize V.Max)")
+print("===================================")
+
+local KnitData = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.DataService
+
+local Candidates = {}
+local Seen = {}
+
+print("🔍 กำลังสแกนหาตระกูล '" .. TargetUnitName .. "' ในกระเป๋า...")
+
+for _, obj in pairs(getgc(true)) do
+    if type(obj) == "table" then
+        pcall(function()
+            local id = rawget(obj, "UnitId")
+            local guid = rawget(obj, "GUID")
+            
+            if type(id) == "string" and type(guid) == "string" and (guid:find("-") or guid:find("{")) then
+                -- เช็คว่าเป็นยูนิตเป้าหมายหรือไม่
+                if string.find(id, TargetUnitName) then
+                    if not Seen[guid] then
+                        Seen[guid] = true
+                        
+                        -- 🕵️‍♂️ ดึงข้อมูลตามหน้าจอ Data Dump ที่ลูกพี่แคปมาเป๊ะๆ
+                        table.insert(Candidates, {
+                            id = id,
+                            guid = guid,
+                            etherealLevel = rawget(obj, "EtherealLevel") or 0,
+                            -- ใช้ TotalTakedowns เป็นหลัก ถ้าไม่มีให้สำรองด้วย Takedowns
+                            takedowns = rawget(obj, "TotalTakedowns") or rawget(obj, "Takedowns") or 0,
+                            exp = rawget(obj, "Experience") or 0,
+                            equipped = rawget(obj, "Equipped"), -- ถ้าไม่ได้ใส่ทีม ค่าจะเป็น nil
+                            locked = rawget(obj, "Locked") or false
+                        })
+                    end
+                end
+            end
+        end)
+    end
+end
+
+-- เช็คว่ามีของให้ทำกินไหม
+if #Candidates < 2 then
+    warn("❌ ยกเลิก: มีตระกูล '" .. TargetUnitName .. "' แค่ " .. #Candidates .. " ตัว (ไม่พอให้อัปดาว หรือไม่มีตัวสังเวย)")
+    return
+end
+
+-- 🧠 AI Sorting: กฎเหล็กของลูกพี่ (ดาว > คิล > EXP > ร่างอีโว)
+table.sort(Candidates, function(a, b)
+    if a.etherealLevel ~= b.etherealLevel then return a.etherealLevel > b.etherealLevel end
+    if a.takedowns ~= b.takedowns then return a.takedowns > b.takedowns end
+    if a.exp ~= b.exp then return a.exp > b.exp end
+    return string.len(a.id) > string.len(b.id)
+end)
+
+local MainUnit = Candidates[1]
+local FoodGUIDs = {}
+
+print(string.format("\n👑 [ตัวหลักที่จะได้รับการอัปดาว]: %s", MainUnit.id))
+print(string.format("   ↳ ดาว: %d | คิล: %d | EXP: %d", MainUnit.etherealLevel, MainUnit.takedowns, MainUnit.exp))
+
+print("\n🍖 [ตรวจสอบรายชื่อตัวสังเวย]:")
+for i = 2, #Candidates do
+    local food = Candidates[i]
+    
+    -- 🛡️ ระบบเซฟตี้: ข้ามตัวที่กำลังใส่ทีม และตัวที่ล็อกไว้
+    local isEquipped = (food.equipped == 1 or food.equipped == true)
+    local isLocked = (food.locked == true)
+    
+    if isEquipped then
+        print(string.format("   🛡️ ข้าม (กำลังใส่ทีม): %s", food.id))
+    elseif isLocked then
+        print(string.format("   🔒 ข้าม (ถูกกดล็อกไว้): %s", food.id))
+    else
+        table.insert(FoodGUIDs, food.guid)
+        print(string.format("   ✔️ อนุมัติเป็นตัวสังเวย: %s (ดาว:%d | คิล:%d | EXP:%d)", food.id, food.etherealLevel, food.takedowns, food.exp))
+    end
+end
+
+-- 🚀 ยิง Remote ของจริง!
+if #FoodGUIDs > 0 then
+    print(string.format("\n🚀 [Executing]: กำลังส่งคำสั่งอัปดาว! โยนตัวสังเวย %d ตัวเข้าเตาหลอม...", #FoodGUIDs))
+    
+    -- ส่งข้อมูลไปให้ Server ประมวลผล
+    KnitData.RE.BulkEtherealize:FireServer(MainUnit.guid, FoodGUIDs, {})
+    
+    print("✅ ยิง Remote สำเร็จ! ยูนิตตัวหลักซดกีกี้เรียบร้อย เช็คกระเป๋าได้เลย!")
+else
+    warn("\n❌ ยกเลิก: ไม่มีตัวสังเวยเหลือให้ใช้งาน (ติดล็อกหรือใส่ทีมอยู่ทั้งหมด)")
+end
+print("===================================")
+

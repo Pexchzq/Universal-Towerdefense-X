@@ -1,0 +1,5 @@
+local ohNumber1 = 1
+game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.WelcomeRewardsService.RF.ClaimDay:InvokeServer(ohNumber1)
+
+local ohNumber1 = 1
+game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.ReturnRewardsService.RF.ClaimDay:InvokeServer(ohNumber1)

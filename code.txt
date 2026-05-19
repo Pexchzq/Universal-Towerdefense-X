@@ -1,0 +1,32 @@
+-- ==========================================
+-- ⚙️ CONFIG: ใส่โค้ดที่ต้องการเติม (เพิ่มได้หลายโค้ด)
+-- ==========================================
+local CodesToRedeem = {
+    "SorryForGlobalMatchmakingDowntime!",
+    "GuildsCharityEvent!",
+    "UTDXThankYouFor60KCCU",
+	"DMCPatch!",
+	"iAmApproaching",
+	"Update2.75!",
+	"30kDMCIntrested!",
+	"25kInterested",
+	"DMCIntrested!",
+	"100MStillOnTheGrind!",
+	"UTDXNumberOne",
+	"WeLoveBerserker!",
+	"2.5Patch!",
+ 
+}
+
+print("🎁 [System]: เริ่มระบบเติมโค้ดอัตโนมัติ...")
+
+local KnitCodeService = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_knit@1.7.0"].knit.Services.CodeService
+
+-- วนลูปเติมโค้ดทั้งหมดที่มีใน Config
+for _, code in ipairs(CodesToRedeem) do
+    print("-> กำลังเติมโค้ด: " .. code)
+    KnitCodeService.RF.Redeem:InvokeServer(code)
+    task.wait(0.5) -- หน่วงเวลาป้องกันโดนเซิร์ฟเวอร์เตะ (Spam Check)
+end
+
+print("✅ เติมโค้ดทั้งหมดเสร็จสิ้น!")
